@@ -1,11 +1,15 @@
 from flask import Flask
 from threading import Thread
+import telebot
+import os
+import random
 
+# ===== KEEP ALIVE (24/7) =====
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "I'm alive"
+    return "Bot ishlayapti"
 
 def run():
     app.run(host='0.0.0.0', port=8080)
@@ -13,19 +17,19 @@ def run():
 def keep_alive():
     t = Thread(target=run)
     t.start()
-import telebot
-import os
-import random
 
+# ===== BOT =====
 TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 # ===== ADMIN =====
-ADMIN_ID = 542998322  # <-- o‘zingni ID qo‘y
+ADMIN_ID = 542998322
+ADMIN_USERNAME = "@alihonov_a1"
 
 # ===== DATA =====
 games = {}
 users = {}
+referrals = {}
 
 # ===== USER =====
 def get_user(user_id):
@@ -46,19 +50,18 @@ def get_game(chat_id):
 @bot.message_handler(commands=['start'])
 def start(msg):
     args = msg.text.split()
-
     user_id = msg.from_user.id
 
-    # referal ishlashi
+    # REFERAL
     if len(args) > 1:
-        ref_id = int(args[1])
-        if user_id != ref_id:
-            referrals[user_id] = ref_id
-
-            ref_user = get_user(ref_id)
-            ref_user["coin"] += 10
-
-            bot.send_message(ref_id, "🎁 Siz referal uchun +10 coin oldingiz!")
+        try:
+            ref_id = int(args[1])
+            if user_id != ref_id:
+                referrals[user_id] = ref_id
+                get_user(ref_id)["coin"] += 20
+                bot.send_message(ref_id, "🎁 Referal +20 coin!")
+        except:
+            pass
 
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎮 Join", "🚀 Start")
@@ -66,7 +69,11 @@ def start(msg):
     markup.add("💳 Buy Coin", "👥 Referal")
 
     bot.send_message(msg.chat.id,
-    "🎭 Mafia bot\n👇 Tugmalardan foydalaning",
+    "🎭 <b>MAFIA BOT</b>\n\n"
+    "🔥 Eng zo‘r o‘yin bot!\n\n"
+    "💰 Coin yig‘ib pul ishlang!\n\n"
+    f"👤 Admin: {ADMIN_USERNAME}",
+    parse_mode="HTML",
     reply_markup=markup)
 
 # ===== JOIN =====
@@ -78,11 +85,9 @@ def join(msg):
 
     if user_id not in game["players"]:
         game["players"].append(user_id)
-
-        bot.send_message(
-            msg.chat.id,
-            f"✅ {name} qo‘shildi ({len(game['players'])} ta)"
-        )
+        bot.send_message(msg.chat.id,
+        f"🎮 <b>{name}</b> qo‘shildi!\n👥 {len(game['players'])} ta",
+        parse_mode="HTML")
     else:
         bot.send_message(msg.chat.id, "❗ Siz allaqachon qo‘shilgansiz")
 
@@ -91,84 +96,80 @@ def join(msg):
 def start_game(msg):
     game = get_game(msg.chat.id)
 
-    if game["started"]:
-        bot.send_message(msg.chat.id, "⚠️ O‘yin allaqachon boshlangan")
-        return
-
     if len(game["players"]) < 3:
         bot.send_message(msg.chat.id, "❗ Kamida 3 ta o‘yinchi kerak")
         return
 
-    game["started"] = True
-
     players = game["players"]
     winner = random.choice(players)
 
-    # 💰 faqat g‘olibga coin
-    user = get_user(winner)
-    user["coin"] += 30
+    get_user(winner)["coin"] += 30
 
     user_info = bot.get_chat(winner)
-    name = user_info.username if user_info.username else user_info.first_name
+    name = user_info.first_name
 
-    bot.send_message(
-        msg.chat.id,
-        f"🏆 G‘olib: {name}\n💰 +30 coin berildi!"
-    )
+    bot.send_message(msg.chat.id,
+    f"🏆 <b>G‘OLIB:</b> {name}\n💰 +30 coin",
+    parse_mode="HTML")
 
-    # RESET
-    games[msg.chat.id] = {
-        "players": [],
-        "started": False
-    }
+    games[msg.chat.id] = {"players": [], "started": False}
 
 # ===== BALANCE =====
 @bot.message_handler(func=lambda m: m.text == "💰 Balance")
 def balance(msg):
-    user = get_user(msg.from_user.id)
-    bot.send_message(msg.chat.id, f"💰 Sizning coin: {user['coin']}")
+    bot.send_message(msg.chat.id,
+    f"💰 <b>Balans:</b>\n🪙 {get_user(msg.from_user.id)['coin']} coin",
+    parse_mode="HTML")
 
 # ===== SHOP =====
 @bot.message_handler(func=lambda m: m.text == "🛒 Shop")
 def shop(msg):
-    bot.send_message(
-        msg.chat.id,
-        "🛒 Shop:\n\n"
-        "VIP — 100 coin\n"
-        "Lucky — 50 coin"
-    )
+    bot.send_message(msg.chat.id,
+    "🛒 Shop:\nVIP = 100 coin")
 
-# ===== BUY COIN (CLICK) =====
+# ===== REFERAL =====
+@bot.message_handler(func=lambda m: m.text == "👥 Referal")
+def referal(msg):
+    link = f"https://t.me/{bot.get_me().username}?start={msg.from_user.id}"
+    bot.send_message(msg.chat.id,
+    f"👥 Referal link:\n\n{link}\n\n+20 coin")
+
+# ===== BUY COIN =====
 @bot.message_handler(func=lambda m: m.text == "💳 Buy Coin")
-def buy_coin(msg):
-    bot.send_message(
-        msg.chat.id,
-        "💳 CLICK orqali to‘lov:\n\n"
-        "💰 100 coin = 10 000 so‘m\n\n"
-        "📱https://t.me/alihonov_a1\n\n"
-        "To‘lovdan keyin admin ga yozing"
-    )
+def buy(msg):
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("✅ Check Payment")
 
-# ===== ADMIN GIVE =====
+    bot.send_message(msg.chat.id,
+    "💳 CLICK to‘lov:\n\n"
+    "100 coin = 10 000 so‘m\n\n"
+    "📱 9860160129222933\n\n"
+    f"👤 Admin: {ADMIN_USERNAME}",
+    reply_markup=markup)
+
+# ===== CHECK PAYMENT =====
+@bot.message_handler(func=lambda m: m.text == "✅ Check Payment")
+def check(msg):
+    get_user(msg.from_user.id)["coin"] += 100
+    bot.send_message(msg.chat.id,
+    "✅ To‘lov tasdiqlandi!\n💰 +100 coin")
+
+# ===== ADMIN =====
 @bot.message_handler(commands=['give'])
-def give_coin(msg):
+def give(msg):
     if msg.from_user.id != ADMIN_ID:
         return
 
     try:
-        _, user_id, amount = msg.text.split()
-        user_id = int(user_id)
+        _, uid, amount = msg.text.split()
+        uid = int(uid)
         amount = int(amount)
 
-        user = get_user(user_id)
-        user["coin"] += amount
-
-        bot.send_message(msg.chat.id, "✅ Coin berildi")
-        bot.send_message(user_id, f"💰 Sizga {amount} coin berildi!")
-
+        get_user(uid)["coin"] += amount
+        bot.send_message(uid, f"💰 +{amount} coin")
     except:
-        bot.send_message(msg.chat.id, "❗ Format: /give user_id coin")
+        bot.send_message(msg.chat.id, "❗ xato")
 
-keep_alive()
 # ===== RUN =====
+keep_alive()
 bot.infinity_polling()
