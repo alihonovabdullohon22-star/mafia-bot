@@ -1,11 +1,12 @@
 import telebot
 import os
+import random
 
 TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 # ===== ADMIN =====
-ADMIN_ID = 542998322  # o‘zingni ID qo‘y
+ADMIN_ID = 542998322  # <-- o‘zingni ID qo‘y
 
 # ===== DATA =====
 games = {}
@@ -14,13 +15,16 @@ users = {}
 # ===== USER =====
 def get_user(user_id):
     if user_id not in users:
-        users[user_id] = {"coin": 100}
+        users[user_id] = {"coin": 0}
     return users[user_id]
 
 # ===== GAME =====
 def get_game(chat_id):
     if chat_id not in games:
-        games[chat_id] = {"players": {}, "started": False}
+        games[chat_id] = {
+            "players": [],
+            "started": False
+        }
     return games[chat_id]
 
 # ===== START =====
@@ -28,44 +32,39 @@ def get_game(chat_id):
 def start(msg):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎮 Join", "🚀 Start")
-    markup.add("🛒 Shop", "💰 Balance")
+    markup.add("💰 Balance", "🛒 Shop")
     markup.add("💳 Buy Coin")
 
     bot.send_message(
         msg.chat.id,
-        "🎭 Mafia botga xush kelibsiz!\n\n👇 Tugmalardan foydalaning",
+        "🎭 Mafia botga xush kelibsiz!\n👇 Tugmalardan foydalaning",
         reply_markup=markup
     )
 
 # ===== JOIN =====
+@bot.message_handler(func=lambda m: m.text == "🎮 Join")
 def join(msg):
     game = get_game(msg.chat.id)
     user_id = msg.from_user.id
     name = msg.from_user.first_name
 
-    if game["started"]:
-        bot.send_message(msg.chat.id, "⚠️ O‘yin boshlangan")
-        return
-
     if user_id not in game["players"]:
-        game["players"][user_id] = name
-
-        user = get_user(user_id)
-        user["coin"] += 10
+        game["players"].append(user_id)
 
         bot.send_message(
             msg.chat.id,
-            f"✅ {name} qo‘shildi ({len(game['players'])} ta)\n💰 +10 coin"
+            f"✅ {name} qo‘shildi ({len(game['players'])} ta)"
         )
     else:
         bot.send_message(msg.chat.id, "❗ Siz allaqachon qo‘shilgansiz")
 
 # ===== START GAME =====
+@bot.message_handler(func=lambda m: m.text == "🚀 Start")
 def start_game(msg):
     game = get_game(msg.chat.id)
 
     if game["started"]:
-        bot.send_message(msg.chat.id, "⚠️ O‘yin boshlangan")
+        bot.send_message(msg.chat.id, "⚠️ O‘yin allaqachon boshlangan")
         return
 
     if len(game["players"]) < 3:
@@ -73,69 +72,53 @@ def start_game(msg):
         return
 
     game["started"] = True
-    players = list(game["players"].values())
+
+    players = game["players"]
+    winner = random.choice(players)
+
+    # 💰 faqat g‘olibga coin
+    user = get_user(winner)
+    user["coin"] += 30
+
+    user_info = bot.get_chat(winner)
+    name = user_info.username if user_info.username else user_info.first_name
 
     bot.send_message(
         msg.chat.id,
-        "🚀 O‘yin boshlandi!\n\n👥 O‘yinchilar:\n" + "\n".join(players)
+        f"🏆 G‘olib: {name}\n💰 +30 coin berildi!"
     )
 
-# ===== SHOP =====
-def shop(msg):
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("💎 VIP (100)", "🎭 Skin (50)")
-    markup.add("⬅️ Back")
-
-    bot.send_message(msg.chat.id, "🛒 SHOP:", reply_markup=markup)
-
-# ===== BUY ITEM =====
-def buy(msg):
-    user = get_user(msg.from_user.id)
-
-    if msg.text == "💎 VIP (100)":
-        if user["coin"] >= 100:
-            user["coin"] -= 100
-            bot.send_message(msg.chat.id, "✅ VIP oldingiz")
-        else:
-            bot.send_message(msg.chat.id, "❗ Coin yetarli emas")
-
-    elif msg.text == "🎭 Skin (50)":
-        if user["coin"] >= 50:
-            user["coin"] -= 50
-            bot.send_message(msg.chat.id, "✅ Skin oldingiz")
-        else:
-            bot.send_message(msg.chat.id, "❗ Coin yetarli emas")
+    # RESET
+    games[msg.chat.id] = {
+        "players": [],
+        "started": False
+    }
 
 # ===== BALANCE =====
-@bot.message_handler(commands=['balance'])
+@bot.message_handler(func=lambda m: m.text == "💰 Balance")
 def balance(msg):
     user = get_user(msg.from_user.id)
-    bot.send_message(msg.chat.id, f"💰 Balans: {user['coin']} coin")
+    bot.send_message(msg.chat.id, f"💰 Sizning coin: {user['coin']}")
+
+# ===== SHOP =====
+@bot.message_handler(func=lambda m: m.text == "🛒 Shop")
+def shop(msg):
+    bot.send_message(
+        msg.chat.id,
+        "🛒 Shop:\n\n"
+        "VIP — 100 coin\n"
+        "Lucky — 50 coin"
+    )
 
 # ===== BUY COIN (CLICK) =====
+@bot.message_handler(func=lambda m: m.text == "💳 Buy Coin")
 def buy_coin(msg):
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("✅ Check Payment", "⬅️ Back")
-
     bot.send_message(
         msg.chat.id,
         "💳 CLICK orqali to‘lov:\n\n"
         "💰 100 coin = 10 000 so‘m\n\n"
-        "📲 CLICK: 9860160129222933\n\n"
-        "To‘lov qilgach 'Check Payment' bosing",
-        reply_markup=markup
-    )
-
-# ===== CHECK PAYMENT =====
-def check_payment(msg):
-    user = get_user(msg.from_user.id)
-
-    # Fake auto system (demo)
-    user["coin"] += 100
-
-    bot.send_message(
-        msg.chat.id,
-        "✅ To‘lov tasdiqlandi!\n💰 +100 coin qo‘shildi"
+        "📱https://t.me/alihonov_a1\n\n"
+        "To‘lovdan keyin admin ga yozing"
     )
 
 # ===== ADMIN GIVE =====
@@ -157,41 +140,6 @@ def give_coin(msg):
 
     except:
         bot.send_message(msg.chat.id, "❗ Format: /give user_id coin")
-
-# ===== RESET =====
-@bot.message_handler(commands=['reset'])
-def reset(msg):
-    games[msg.chat.id] = {"players": {}, "started": False}
-    bot.send_message(msg.chat.id, "♻️ O‘yin reset qilindi")
-
-# ===== HANDLER =====
-@bot.message_handler(func=lambda msg: True)
-def all_messages(msg):
-    text = msg.text.lower()
-
-    if text in ["🎮 join", "/join"]:
-        join(msg)
-
-    elif text in ["🚀 start", "/game"]:
-        start_game(msg)
-
-    elif text in ["🛒 shop", "/shop"]:
-        shop(msg)
-
-    elif text in ["💰 balance"]:
-        balance(msg)
-
-    elif text in ["💳 buy coin"]:
-        buy_coin(msg)
-
-    elif text == "✅ check payment":
-        check_payment(msg)
-
-    elif "vip" in text or "skin" in text:
-        buy(msg)
-
-    elif text == "⬅️ back":
-        start(msg)
 
 # ===== RUN =====
 bot.infinity_polling()
