@@ -5,7 +5,7 @@ TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 # ===== ADMIN =====
-ADMIN_ID = 123456789  # o‘zingni ID qo‘y
+ADMIN_ID = 542998322  # o‘zingni ID qo‘y
 
 # ===== DATA =====
 games = {}
@@ -121,7 +121,7 @@ def buy_coin(msg):
         msg.chat.id,
         "💳 CLICK orqali to‘lov:\n\n"
         "💰 100 coin = 10 000 so‘m\n\n"
-        "📲 CLICK: 998901234567\n\n"
+        "📲 CLICK: 9860160129222933\n\n"
         "To‘lov qilgach 'Check Payment' bosing",
         reply_markup=markup
     )
