@@ -30,16 +30,29 @@ def get_game(chat_id):
 # ===== START =====
 @bot.message_handler(commands=['start'])
 def start(msg):
+    args = msg.text.split()
+
+    user_id = msg.from_user.id
+
+    # referal ishlashi
+    if len(args) > 1:
+        ref_id = int(args[1])
+        if user_id != ref_id:
+            referrals[user_id] = ref_id
+
+            ref_user = get_user(ref_id)
+            ref_user["coin"] += 10
+
+            bot.send_message(ref_id, "🎁 Siz referal uchun +10 coin oldingiz!")
+
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎮 Join", "🚀 Start")
     markup.add("💰 Balance", "🛒 Shop")
-    markup.add("💳 Buy Coin")
+    markup.add("💳 Buy Coin", "👥 Referal")
 
-    bot.send_message(
-        msg.chat.id,
-        "🎭 Mafia botga xush kelibsiz!\n👇 Tugmalardan foydalaning",
-        reply_markup=markup
-    )
+    bot.send_message(msg.chat.id,
+    "🎭 Mafia bot\n👇 Tugmalardan foydalaning",
+    reply_markup=markup)
 
 # ===== JOIN =====
 @bot.message_handler(func=lambda m: m.text == "🎮 Join")
