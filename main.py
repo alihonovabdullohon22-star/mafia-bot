@@ -1,95 +1,52 @@
-from flask import Flask
-from threading import Thread
+77701"}
 import telebot
 import os
 import random
 
-# ===== KEEP ALIVE (24/7) =====
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot ishlayapti"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
-# ===== BOT =====
 TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
-# ===== ADMIN =====
 ADMIN_ID = 542998322
 ADMIN_USERNAME = "@alihonov_a1"
 
-# ===== DATA =====
 games = {}
 users = {}
-referrals = {}
 
-# ===== USER =====
 def get_user(user_id):
     if user_id not in users:
         users[user_id] = {"coin": 0}
     return users[user_id]
 
-# ===== GAME =====
 def get_game(chat_id):
     if chat_id not in games:
         games[chat_id] = {
             "players": [],
-            "started": False
+            "roles": {},
+            "started": False,
+            "votes": {}
         }
     return games[chat_id]
 
 # ===== START =====
 @bot.message_handler(commands=['start'])
 def start(msg):
-    args = msg.text.split()
-    user_id = msg.from_user.id
-
-    # REFERAL
-    if len(args) > 1:
-        try:
-            ref_id = int(args[1])
-            if user_id != ref_id:
-                referrals[user_id] = ref_id
-                get_user(ref_id)["coin"] += 20
-                bot.send_message(ref_id, "🎁 Referal +20 coin!")
-        except:
-            pass
-
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎮 Join", "🚀 Start")
-    markup.add("💰 Balance", "🛒 Shop")
-    markup.add("💳 Buy Coin", "👥 Referal")
 
     bot.send_message(msg.chat.id,
-    "🎭 <b>MAFIA BOT</b>\n\n"
-    "🔥 Eng zo‘r o‘yin bot!\n\n"
-    "💰 Coin yig‘ib pul ishlang!\n\n"
-    f"👤 Admin: {ADMIN_USERNAME}",
-    parse_mode="HTML",
+    "🎭 Mafia game boshlash uchun Join bosing",
     reply_markup=markup)
 
 # ===== JOIN =====
 @bot.message_handler(func=lambda m: m.text == "🎮 Join")
 def join(msg):
     game = get_game(msg.chat.id)
-    user_id = msg.from_user.id
-    name = msg.from_user.first_name
+    uid = msg.from_user.id
 
-    if user_id not in game["players"]:
-        game["players"].append(user_id)
+    if uid not in game["players"]:
+        game["players"].append(uid)
         bot.send_message(msg.chat.id,
-        f"🎮 <b>{name}</b> qo‘shildi!\n👥 {len(game['players'])} ta",
-        parse_mode="HTML")
-    else:
-        bot.send_message(msg.chat.id, "❗ Siz allaqachon qo‘shilgansiz")
+        f"👤 Qo‘shildi ({len(game['players'])})")
 
 # ===== START GAME =====
 @bot.message_handler(func=lambda m: m.text == "🚀 Start")
@@ -97,79 +54,76 @@ def start_game(msg):
     game = get_game(msg.chat.id)
 
     if len(game["players"]) < 3:
-        bot.send_message(msg.chat.id, "❗ Kamida 3 ta o‘yinchi kerak")
+        bot.send_message(msg.chat.id, "Kamida 3 kishi kerak")
         return
+
+    game["started"] = True
 
     players = game["players"]
-    winner = random.choice(players)
+    random.shuffle(players)
 
-    get_user(winner)["coin"] += 30
+    roles = {}
+    roles[players[0]] = "😈 Mafia"
+    roles[players[1]] = "👮 Sheriff"
 
-    user_info = bot.get_chat(winner)
-    name = user_info.first_name
+    for p in players[2:]:
+        roles[p] = "👤 Oddiy"
 
-    bot.send_message(msg.chat.id,
-    f"🏆 <b>G‘OLIB:</b> {name}\n💰 +30 coin",
-    parse_mode="HTML")
+    game["roles"] = roles
 
-    games[msg.chat.id] = {"players": [], "started": False}
-
-# ===== BALANCE =====
-@bot.message_handler(func=lambda m: m.text == "💰 Balance")
-def balance(msg):
-    bot.send_message(msg.chat.id,
-    f"💰 <b>Balans:</b>\n🪙 {get_user(msg.from_user.id)['coin']} coin",
-    parse_mode="HTML")
-
-# ===== SHOP =====
-@bot.message_handler(func=lambda m: m.text == "🛒 Shop")
-def shop(msg):
-    bot.send_message(msg.chat.id,
-    "🛒 Shop:\nVIP = 100 coin")
-
-# ===== REFERAL =====
-@bot.message_handler(func=lambda m: m.text == "👥 Referal")
-def referal(msg):
-    link = f"https://t.me/{bot.get_me().username}?start={msg.from_user.id}"
-    bot.send_message(msg.chat.id,
-    f"👥 Referal link:\n\n{link}\n\n+20 coin")
-
-# ===== BUY COIN =====
-@bot.message_handler(func=lambda m: m.text == "💳 Buy Coin")
-def buy(msg):
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("✅ Check Payment")
+    # private role
+    for uid, role in roles.items():
+        try:
+            bot.send_message(uid, f"Siz: {role}")
+        except:
+            pass
 
     bot.send_message(msg.chat.id,
-    "💳 CLICK to‘lov:\n\n"
-    "100 coin = 10 000 so‘m\n\n"
-    "📱 9860160129222933\n\n"
-    f"👤 Admin: {ADMIN_USERNAME}",
-    reply_markup=markup)
+    "🌙 Kecha boshlandi...")
 
-# ===== CHECK PAYMENT =====
-@bot.message_handler(func=lambda m: m.text == "✅ Check Payment")
-def check(msg):
-    get_user(msg.from_user.id)["coin"] += 100
+    # mafia kill (random)
+    mafia = players[0]
+    victim = random.choice(players[1:])
+
+    game["dead"] = victim
+
     bot.send_message(msg.chat.id,
-    "✅ To‘lov tasdiqlandi!\n💰 +100 coin")
+    "☀️ Kun boshlandi!\n/vote id yozing")
 
-# ===== ADMIN =====
-@bot.message_handler(commands=['give'])
-def give(msg):
-    if msg.from_user.id != ADMIN_ID:
-        return
+# ===== VOTE =====
+@bot.message_handler(commands=['vote'])
+def vote(msg):
+    game = get_game(msg.chat.id)
 
     try:
-        _, uid, amount = msg.text.split()
-        uid = int(uid)
-        amount = int(amount)
-
-        get_user(uid)["coin"] += amount
-        bot.send_message(uid, f"💰 +{amount} coin")
+        target = int(msg.text.split()[1])
     except:
-        bot.send_message(msg.chat.id, "❗ xato")
+        bot.send_message(msg.chat.id, "❗ /vote id")
+        return
 
-# ===== RUN =====
-keep_alive()
+    game["votes"].setdefault(target, 0)
+    game["votes"][target] += 1
+
+    if game["votes"][target] >= 2:
+        finish(msg.chat.id)
+
+# ===== FINISH =====
+def finish(chat_id):
+    game = get_game(chat_id)
+
+    winner = random.choice(game["players"])
+    get_user(winner)["coin"] += 30
+
+    name = bot.get_chat(winner).first_name
+
+    bot.send_message(chat_id,
+    f"🏆 G‘olib: {name}\n💰 +30 coin")
+
+    games[chat_id] = {
+        "players": [],
+        "roles": {},
+        "started": False,
+        "votes": {}
+    }
+
 bot.infinity_polling()
